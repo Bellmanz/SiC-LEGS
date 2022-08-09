@@ -111,8 +111,9 @@ void piezo_stop_exp(void)
 
 /**
  * @brief retrieves the data collected data from the buffer
- * @prarm buffer to copy the data to
- * @param the data offset
+ * @param buffer to copy the data to
+ * @param the amount of data to copy
+ * @param the data offset from where to start copying
  */
 void piezo_get_data(unsigned char *buf, unsigned long len, unsigned long data_offset)
 {

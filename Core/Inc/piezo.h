@@ -10,7 +10,7 @@ void ascii_to_int (char * bufferIn, int * bufferOut);
 bool record_was_empty(char * bufferIn);
 void piezo_get_data(unsigned char *buf, unsigned long len, unsigned long data_offset);
 int piezo_get_data_length(void);
-void convert_to_8bit(uint8_t * buffer, uint16_t length);
+void convert_to_big_endian(uint8_t * buffer, uint16_t length);
 void clear_piezo_buffer(void);
 void RS485(uint8_t);
 

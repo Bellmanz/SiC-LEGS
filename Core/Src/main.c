@@ -61,8 +61,10 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t aBuffer[MSP_EXP_MAX_FRAME_SIZE];
-long unsigned int dataLength = 0; // changed 220809, the amount of data in the buffer containing valid data
+uint8_t recvBuffer[MSP_EXP_MAX_FRAME_SIZE];
+long unsigned int recvLength = 0; // changed 220809, the amount of data in the buffer containing valid data
+uint8_t sendBuffer[MSP_EXP_MAX_FRAME_SIZE];
+long unsigned int sendLength = 0; // changed 220809, the amount of data in the buffer containing valid data
 uint8_t transferDirectionGlobal = 1;
 uint8_t volatile addr = 0x45; //defines the adress when only one i2c adress is used.
 bool volatile has_function_to_execute = false;
@@ -167,7 +169,7 @@ int main(void)
         also react to transmit interrupts. Another potential solution is to use HAL_I2C_EnableListen_IT(), as
         this may be enough to trigger the call to HAL_I2C_AddrCallback(). This probably means though that we need
         to call a function that reads and writes the I2C data in HAL_I2C_AddrCallback() based on the transfer direction */
-    if(HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)aBuffer, sizeof(aBuffer)) != HAL_OK)
+    if(HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)recvBuffer, sizeof(recvBuffer)) != HAL_OK)
     { 
       Error_Handler();
     }
@@ -182,24 +184,25 @@ int main(void)
     if(!transferDirectionGlobal)// OBC Write
     {
        // Assuming no overflow here, i.e. that we did not receive too much data and
-       // that hi2c1.XferCount <= sizeof(aBuffer)
-       dataLength = sizeof(aBuffer) - hi2c1.XferCount;
+       // that hi2c1.XferCount <= sizeof(recvBuffer)
+       recvLength = sizeof(recvBuffer) - hi2c1.XferCount;
        //this funtion returns the negative error codes in MSP.
-       msp_error_code_receive = msp_recv_callback((uint8_t *)aBuffer, dataLength, addr);
+       msp_error_code_receive = msp_recv_callback((uint8_t *)recvBuffer, recvLength, addr);
        if (msp_error_receive != 0) {
          // TODO Handle error
        }
     }
     else // OBC Read (REQ)
     {
-       msp_error_code_send = msp_send_callback((uint8_t *)aBuffer, &dataLength, addr);
+       msp_error_code_send = msp_send_callback((uint8_t *)sendBuffer, &sendLength, addr);
        if (msp_error_code_send != 0) {
            // TODO Handle error
-       } else if (HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)aBuffer, dataLength) != HAL_OK)
+       } else if (HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)sendBuffer, sendLength) != HAL_OK)
            Error_Handler();
        }
+       while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
     }
-    Flush_Buffer8((uint8_t *)aBuffer, sizeof(aBuffer));
+
     if(has_function_to_execute)
     {
          (*command_ptr) ();
