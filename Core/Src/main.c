@@ -62,7 +62,7 @@
 
 /* USER CODE BEGIN PV */
 uint8_t aBuffer[MSP_EXP_MAX_FRAME_SIZE];
-long unsigned int buffLength = MSP_EXP_MAX_FRAME_SIZE; // changed 220809
+long unsigned int dataLength = 0; // changed 220809, the amount of data in the buffer containing valid data
 uint8_t transferDirectionGlobal = 1;
 uint8_t volatile addr = 0x45; //defines the adress when only one i2c adress is used.
 bool volatile has_function_to_execute = false;
@@ -163,48 +163,44 @@ int main(void)
     //start_driver(); // If this line is included, runs the test program instead to be deleted in final version
 	//test_driver();  // If this line is included, runs Bellmans test program in a separate file, easier to delete in final version
     
-	/* TxRx changed to Receive; TxRx no longer exists? */
-    // if(HAL_I2C_Slave_TxRx_IT(&hi2c1, (uint8_t *)aBuffer, buffLength) != HAL_OK)
-    if(HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)aBuffer, buffLength) != HAL_OK)
+    /* TxRx changed to Receive; Note however that this function has been modified to
+        also react to transmit interrupts. Another potential solution is to use HAL_I2C_EnableListen_IT(), as
+        this may be enough to trigger the call to HAL_I2C_AddrCallback(). This probably means though that we need
+        to call a function that reads and writes the I2C data in HAL_I2C_AddrCallback() based on the transfer direction */
+    if(HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)aBuffer, sizeof(aBuffer)) != HAL_OK)
     { 
       Error_Handler();
     }
    
     //wait for the i2c reception to finish this must timeout at some point, otherwise there is risk for getting stuck.
+    // TODO One way of solving this could be to utilize the HAL_I2C_MasterRxCpltCallback function instead of polling here
     while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY)
     {
    
     }
 
-    //buff_length((uint8_t *)aBuffer, &buffLength); //
-    
-    
     if(!transferDirectionGlobal)// OBC Write
     {
+       // Assuming no overflow here, i.e. that we did not receive too much data and
+       // that hi2c1.XferCount <= sizeof(aBuffer)
+       dataLength = sizeof(aBuffer) - hi2c1.XferCount;
        //this funtion returns the negative error codes in MSP.
-       msp_error_code_receive = msp_recv_callback((uint8_t *)aBuffer, buffLength, addr);
-       // msp_error_code_send = msp_send_callback((uint8_t *)aBuffer, &buffLength, addr);
-       
-       /* this tells us if we are in a msp transaction, except for the time inbetween the msp code is running
-        and the i2c code is running, needs to be covered by flow controll*/ 
+       msp_error_code_receive = msp_recv_callback((uint8_t *)aBuffer, dataLength, addr);
+       if (msp_error_receive != 0) {
+         // TODO Handle error
+       }
     }
     else // OBC Read (REQ)
     {
-       msp_error_code_send = msp_send_callback((uint8_t *)aBuffer, &buffLength, addr);
-       if(HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)aBuffer, buffLength) != HAL_OK)
-       {
-         Error_Handler();
+       msp_error_code_send = msp_send_callback((uint8_t *)aBuffer, &dataLength, addr);
+       if (msp_error_code_send != 0) {
+           // TODO Handle error
+       } else if (HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)aBuffer, dataLength) != HAL_OK)
+           Error_Handler();
        }
-
-/*       Flush_Buffer8((uint8_t *)aBuffer, buffLength);
-       if(msp_exp_state.type == MSP_EXP_STATE_READY && has_function_to_execute)
-       {
-            (*command_ptr) ();
-            has_function_to_execute = false;
-       } */
     }
-    Flush_Buffer8((uint8_t *)aBuffer, buffLength);
-    if(msp_exp_state.type == MSP_EXP_STATE_READY && has_function_to_execute)
+    Flush_Buffer8((uint8_t *)aBuffer, sizeof(aBuffer));
+    if(has_function_to_execute)
     {
          (*command_ptr) ();
          has_function_to_execute = false;

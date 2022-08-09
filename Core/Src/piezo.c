@@ -36,7 +36,7 @@ uint8_t xu6_buffer[17]; // used for sending data request, changed from 6 to 17 t
 uint8_t saveDataPointer[1];
 uint8_t piezoData[200];
 int piezoBufferRxInt[200];
-uint8_t piezoBufferint8[200];
+uint8_t piezoBufferint8[(sizeof(piezoBufferRxInt) / sizeof(piezoBufferRxInt[0]) << 1];
 extern UART_HandleTypeDef huart1;
 int dataLength = 0;
 
@@ -114,13 +114,11 @@ void piezo_stop_exp(void)
  * @prarm buffer to copy the data to
  * @param the data offset
  */
-void piezo_get_data(unsigned char *buf, long data_offset)
+void piezo_get_data(unsigned char *buf, unsigned long len, unsigned long data_offset)
 {
-  long i = data_offset;
-  while (i<dataLength)
+  for (unsigned long i = data_offset; i < dataLength && i - data_offset < len; i++)
   {
-    buf[i] = piezoBufferint8[i];
-    i++;
+    buf[i - data_offset] = piezoBufferint8[i];
   }
 }
 
@@ -179,7 +177,7 @@ unsigned char piezo_read_data_records(void)
           break; // stop reading
         piezoData[i++] = saveDataPointer[0];
         //printf("%d\n", piezoData[i]);
-        if ('\r' == saveDataPointer[0]||i==199)//199 so we do not write outside array
+        if ('\r' == saveDataPointer[0]||i == sizeof(piezoData) - 1)//so we do not write outside array
            //printf("r received");
            break; // stop reading
       }
@@ -187,8 +185,8 @@ unsigned char piezo_read_data_records(void)
       HAL_Delay(1000);
       RS485(RS_MODE_DEACTIVATE); // Turn off communication
 
-      //check if record was empty
-      if(record_was_empty((char *)&piezoData[6]))
+      //check if record was empty, or we have received too much data
+      if(record_was_empty((char *)&piezoData[6]) || dataOffset + 9 >= sizeof(piezoBufferRxInt))
       {
         isThereMoreData = false;
         break; // break the attempt loop
@@ -212,21 +210,34 @@ unsigned char piezo_read_data_records(void)
       }
     }
   }
-  convert_to_8bit(piezoBufferint8, dataOffset*2);
+  // Used to be dataOffset*2 here which is incorrect since that is the amount
+  // of indices in piezoBufferint8, not piezoBufferRxInt
+  convert_to_big_endian(piezoBufferint8, dataOffset);
+  // Return value should be dataOffset*2 since it is the length of piezoBufferint8
+  // which is the data sent
   return dataOffset*2;
 }
 
 /**
- * @brief check if the record that was read was empty, eather by containg 0,0,0
+ * @brief check if the record that was read was empty, either by containg 0,0,0
  * or by containing null.
  * @prarm buffer to copy the data to
  * @param the data offset
  */
 bool record_was_empty(char * bufferIn)
 {
-   //ascii 0 * 8 = 384
-  return ((bufferIn[0] + bufferIn[2] + bufferIn[4] + bufferIn[6] + bufferIn[8] + bufferIn[10] + bufferIn[12] + bufferIn[14])==384)
-    ||((bufferIn[0] + bufferIn[2] + bufferIn[4] + bufferIn[6] + bufferIn[8] + bufferIn[10] + bufferIn[12] + bufferIn[14])==0);
+   // Previous implementation assumed that all values being equal to 384 means
+   // that all values are '0', this is not always correct
+   for (int i = 0; i <= 14; i += 2) {
+       if (bufferIn[i] != '0') {
+           for (int j = 0; j <= 14; j += 2) {
+               if (bufferIn[j] != '\0')
+                   return false;
+           }
+           return true;
+       }
+   }
+   return true;
 }
 
 
@@ -254,16 +265,19 @@ bool piezo_checksum(int *piezoBufferRx)
 }
 
 /**
- * @brief calculated the checksum for a command that was recived by from piezo
- * @prarm buffer with ascii caracters
- * @param buffer that the integere valued should be written to
+ * @brief Converts a series of nine ascii encoded integers into nine decimal integers.
+ *        The ascii integers should be separated by a non-numerical character
+ * @prarm buffer with ascii characters
+ * @param buffer that the integer valued should be written to
+ * @note Assumes that each ascii integer fits within an 'int', otherwise the converted
+ *       value will be undefined
  */
 void ascii_to_int (char * bufferIn, int * bufferOut)
 {
   for (int i = 0; i < 9; i++)
   {
       int temp = 0;
-      while(((*bufferIn != ',')&&(*bufferIn != '\r')))
+      while(((*bufferIn >= '0')&&(*bufferIn <= '9')))
       {
           temp = temp*10;
           temp = temp + (*bufferIn - '0');
@@ -275,12 +289,11 @@ void ascii_to_int (char * bufferIn, int * bufferOut)
   }
 }
 
-void convert_to_8bit(uint8_t * buffer, uint16_t length)
+void convert_to_big_endian(uint8_t * buffer, uint16_t length)
 {
   for (int i = 0; i < length; i++)
   {
-      *buffer = piezoBufferRxInt[i] >>8 & 0xFF  ;
-      *++buffer = piezoBufferRxInt[i]  & 0xFF  ;
-      buffer++;
+      buffer[(i << 1)] = (piezoBufferRxInt[i] >> 8) & 0xFF;
+      buffer[(i << 1) + 1] = piezoBufferRxInt[i]  & 0xFF;
   }
 }
