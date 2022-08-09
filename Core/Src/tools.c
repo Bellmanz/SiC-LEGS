@@ -18,7 +18,6 @@
 #include "tools.h"
 #include "msp_exp.h"
 
-
 void Flush_Buffer(int* pBuffer, uint16_t BufferLength)
 {
   while (BufferLength--)
@@ -48,4 +47,5 @@ void buff_length(uint8_t* pBuffer, unsigned long *BufferLength)
     pBuffer++;
   }
 }
+
 

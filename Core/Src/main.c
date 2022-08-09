@@ -32,7 +32,7 @@
 #include "stm32l0xx_hal_i2c.h"
 #include "tools.h"
 #include "start_test.h"
-//#include "test_driver.h"
+#include "test_driver.h"
 #include "piezo.h"
 #include "msp_exp.h"
 #include "eeprom_circular.h"
@@ -62,8 +62,8 @@
 
 /* USER CODE BEGIN PV */
 uint8_t aBuffer[MSP_EXP_MAX_FRAME_SIZE];
-long unsigned int buffLength = 0;
-uint8_t transferDirectionGlobal;
+long unsigned int buffLength = MSP_EXP_MAX_FRAME_SIZE; // changed 220809
+uint8_t transferDirectionGlobal = 1;
 uint8_t volatile addr = 0x45; //defines the adress when only one i2c adress is used.
 bool volatile has_function_to_execute = false;
 void (* volatile command_ptr) () = NULL;
@@ -160,9 +160,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    start_driver(); // If this line is included, runs the test program instead
+    //start_driver(); // If this line is included, runs the test program instead to be deleted in final version
+	//test_driver();  // If this line is included, runs Bellmans test program in a separate file, easier to delete in final version
     
 	/* TxRx changed to Receive; TxRx no longer exists? */
+    // if(HAL_I2C_Slave_TxRx_IT(&hi2c1, (uint8_t *)aBuffer, buffLength) != HAL_OK)
     if(HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)aBuffer, buffLength) != HAL_OK)
     { 
       Error_Handler();
@@ -174,26 +176,38 @@ int main(void)
    
     }
 
-    buff_length((uint8_t *)aBuffer, &buffLength); //
+    //buff_length((uint8_t *)aBuffer, &buffLength); //
     
     
-    if(!transferDirectionGlobal)//if we recived a command
+    if(!transferDirectionGlobal)// OBC Write
     {
-       //this funtion returnes the negative error codes in MSP.
+       //this funtion returns the negative error codes in MSP.
        msp_error_code_receive = msp_recv_callback((uint8_t *)aBuffer, buffLength, addr);
-       msp_error_code_send = msp_send_callback((uint8_t *)aBuffer, &buffLength, addr);
+       // msp_error_code_send = msp_send_callback((uint8_t *)aBuffer, &buffLength, addr);
        
-       /* this tells us if we are in a msp transaktion, except for the time inbetween the msp code is running
+       /* this tells us if we are in a msp transaction, except for the time inbetween the msp code is running
         and the i2c code is running, needs to be covered by flow controll*/ 
     }
-    else //if a command was sent
+    else // OBC Read (REQ)
     {
-       Flush_Buffer8((uint8_t *)aBuffer, buffLength);
+       msp_error_code_send = msp_send_callback((uint8_t *)aBuffer, &buffLength, addr);
+       if(HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)aBuffer, buffLength) != HAL_OK)
+       {
+         Error_Handler();
+       }
+
+/*       Flush_Buffer8((uint8_t *)aBuffer, buffLength);
        if(msp_exp_state.type == MSP_EXP_STATE_READY && has_function_to_execute)
        {
             (*command_ptr) ();
             has_function_to_execute = false;
-       }
+       } */
+    }
+    Flush_Buffer8((uint8_t *)aBuffer, buffLength);
+    if(msp_exp_state.type == MSP_EXP_STATE_READY && has_function_to_execute)
+    {
+         (*command_ptr) ();
+         has_function_to_execute = false;
     }
     /* USER CODE END WHILE */
 
@@ -215,6 +229,7 @@ void SystemClock_Config(void)
   /** Configure the main internal regulator output voltage
   */
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -227,6 +242,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -285,17 +301,17 @@ void start_driver(void){
       for(uint8_t i = 0; i<length/2; i++){
         //printf("0x%X ", sic_test_data[i]);
        if(i % 8 == 0){
-         printf("\n");
+         //printf("\n");
         }
         print16bit(piezoBufferDebug[i*2], piezoBufferDebug[i*2+1], 1);
-     }
+      }
       
       for(uint8_t i = 0; i<length; i++){
         //printf("0x%X ", sic_test_data[i]);
         if(i % 8 == 0){
-          printf("\n");
+          //printf("\n");
         }
-        printf("0x%02x\t", piezoBufferDebug[i]);
+        //printf("0x%02x\t", piezoBufferDebug[i]);
       }
       HAL_Delay(60000);
     }
@@ -326,19 +342,19 @@ void start_driver(void){
           //printf("0x%X ", sic_test_data[i]);
           
           if(test_index % 8 == 0 && test_index != 0){
-            printf("\n");
+            //printf("\n");
             max_number_lines++;
           }
           
           print16bit(sic_test_data[test_index*2], sic_test_data[test_index*2+1], 0);
           
         }
-        printf("\n");
+        //printf("\n");
         //sic_power_off();
         //HAL_Delay(100);
       }
       else {
-        printf("Please save data from the terminal now. Max number of lines almost reached.\n");
+        //printf("Please save data from the terminal now. Max number of lines almost reached.\n");
         max_number_lines = 0;
       }
       
@@ -385,15 +401,15 @@ void print16bit(uint8_t biggest_number, uint8_t smallest_number, uint8_t number_
   uint16_t val = (biggest_number << 8) + smallest_number;
   switch(number_format){
     case 0:
-      printf("%d\t", val);
+      //printf("%d\t", val);
       break;
     
     case 1:
-      printf("0x%x\t", val);
+      //printf("0x%x\t", val);
       break;
       
     case 2:
-      printf("0x02%x\t", val);
+      //printf("0x02%x\t", val);
       break;
     
   }
@@ -457,5 +473,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

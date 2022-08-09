@@ -5,14 +5,14 @@
 /**
  *****************************************************************************
  * @file power_management.c
- * @date 2019-06-26
- * @bug no known buggs
+ * @date 2019-06-26 restructured 2022-08-08 CMZ
+ * @bug no known bugs
  * @brief power management
  *****************************************************************************
- * this file contains the inforamtion of the experiment power state, active / 
- * inactive, wich is neccesary inorder to stop removing power from a runnig 
- * experiment if they are runned simultaneously.
- * fucntions are defined in order to turn off the power buses induvidualy
+ * this file contains the information of the experiment power state, active /
+ * inactive, which is necessary in order to avoid removing power from a running
+ * experiment if the two experiemnts are run simultaneously.
+ * functions are defined in order to turn on and off the power buses individually
  */
 
 
@@ -21,32 +21,33 @@
 #include "usart.h"
 
 /* data section */
-bool is_sic_running = false;
-bool is_piezo_running = false;
+bool sic_running = false;
+bool piezo_running = false;
 
 /**
  * @brief turns on power for piezo
  */
 void piezo_power_on(void)
 {
-  is_piezo_running = true;
-  HAL_GPIO_WritePin(GPIOB, Battery_SW_ON_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(GPIOB, Piezo_ON_Pin, GPIO_PIN_RESET); // reverse polarity!
-  HAL_GPIO_WritePin(GPIOB, Piezo_48V_ON_Pin, GPIO_PIN_SET);
+  piezo_running = true;
+  if (!sic_running) {
+	  turn_on_vbat();
   }
+  turn_on_5v();
+  turn_on_48v();
+}
 
 /**
  * @brief turns off power for piezo
  */
 void piezo_power_off(void)
 {
-   HAL_GPIO_WritePin(GPIOB, Piezo_48V_ON_Pin, GPIO_PIN_RESET);
-   HAL_GPIO_WritePin(GPIOB, Piezo_ON_Pin, GPIO_PIN_SET); // reverse polarity!
-   if(!is_sic_running)
-   {
-     HAL_GPIO_WritePin(GPIOB, Battery_SW_ON_Pin, GPIO_PIN_RESET);
-   }
-   is_piezo_running = false;
+	turn_off_48v();
+	turn_off_5v();
+	if(!sic_running) {
+		turn_off_vbat();
+	}
+   piezo_running = false;
 }
 
 /**
@@ -54,9 +55,11 @@ void piezo_power_off(void)
  */
 void sic_power_on(void)
 {
-  is_sic_running = true;
-  HAL_GPIO_WritePin(GPIOB, Battery_SW_ON_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(GPIOB, Linear_10V_ON_Pin, GPIO_PIN_SET);
+  sic_running = true;
+  if (!piezo_running) {
+	  turn_on_vbat();
+  }
+  turn_on_10v();
 }
 
 /**
@@ -64,16 +67,57 @@ void sic_power_on(void)
  */
 void sic_power_off(void)
 {
-  HAL_GPIO_WritePin(GPIOB, Linear_10V_ON_Pin, GPIO_PIN_RESET);
-  if(!is_piezo_running)
-  {
-     HAL_GPIO_WritePin(GPIOB, Battery_SW_ON_Pin, GPIO_PIN_RESET);
-  }
-  is_sic_running = false;
+	turn_off_10v();
+	if(!piezo_running) {
+		turn_off_vbat();
+	}
+	sic_running = false;
 }
 
 /**
- * @brief turns off 48v
+ * @brief turns on vbat for Piezo / SiC
+ */
+void turn_on_vbat(void)
+{
+  HAL_GPIO_WritePin(GPIOB, Battery_SW_ON_Pin, GPIO_PIN_SET);
+}
+
+/**
+ * @brief turns on 48 V for Piezo
+ */
+void turn_on_48v(void)
+{
+    HAL_GPIO_WritePin(GPIOB, Piezo_48V_ON_Pin, GPIO_PIN_SET);
+}
+
+/**
+ * @brief turns on 10v for SiC
+ */
+void turn_on_10v(void)
+{
+   HAL_GPIO_WritePin(GPIOB, Linear_10V_ON_Pin, GPIO_PIN_SET);
+}
+
+/**
+ * @brief turns on 5v for Piezo
+ *
+ * The pin controls a PMOSFET, therefore the polarity is reversed
+ */
+void turn_on_5v(void)
+{
+  HAL_GPIO_WritePin(GPIOB, Piezo_ON_Pin, GPIO_PIN_RESET);  // reverse polarity!
+}
+
+/**
+ * @brief turns off vbat for Piezo / SiC
+ */
+void turn_off_vbat(void)
+{
+  HAL_GPIO_WritePin(GPIOB, Battery_SW_ON_Pin, GPIO_PIN_RESET);
+}
+
+/**
+ * @brief turns off 48v for Piezo
  */
 void turn_off_48v(void)
 {
@@ -81,15 +125,7 @@ void turn_off_48v(void)
 }
 
 /**
- * @brief turns off 5v
- */
-void turn_off_5v(void)
-{
-  HAL_GPIO_WritePin(GPIOB, Piezo_ON_Pin, GPIO_PIN_SET);  // reverse polarity!
-}
-
-/**
- * @brief turns off 10v
+ * @brief turns off 10v for SiC
  */
 void turn_off_10v(void)
 {
@@ -97,9 +133,12 @@ void turn_off_10v(void)
 }
 
 /**
- * @brief turns off vbat
+ * @brief turns off 5v for Piezo
+ *
+ * The pin controls a PMOSFET, therefore the polarity is reversed
  */
-void turn_off_vbat(void)
+void turn_off_5v(void)
 {
-  HAL_GPIO_WritePin(GPIOB, Battery_SW_ON_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, Piezo_ON_Pin, GPIO_PIN_SET);  // reverse polarity!
 }
+

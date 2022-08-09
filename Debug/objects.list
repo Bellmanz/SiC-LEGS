@@ -20,6 +20,7 @@
 "./Core/Src/syscalls.o"
 "./Core/Src/sysmem.o"
 "./Core/Src/system_stm32l0xx.o"
+"./Core/Src/test_driver.o"
 "./Core/Src/tools.o"
 "./Core/Src/usart.o"
 "./Core/Startup/startup_stm32l053c6tx.o"
