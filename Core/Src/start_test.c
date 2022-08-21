@@ -61,13 +61,11 @@ void clear_sic_buffer (void)
 }
 
 
-void sic_get_data(unsigned char *buf, long data_offset)
+void sic_get_data(unsigned char *buf, unsigned long len, unsigned long data_offset)
 {
-  uint16_t i =0;
-  while (i<BUFFERLENGTH)
+  for (unsigned long i = data_offset; i < BUFFERLENGTH && i - data_offset < len; i++)
   {
-    buf[i] = buffer[i];
-    i++;
+    buf[i - data_offset] = buffer[i];
   }
 }
 

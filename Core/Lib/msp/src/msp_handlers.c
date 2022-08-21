@@ -51,11 +51,11 @@ void msp_expsend_data(unsigned char opcode, unsigned char *buf, unsigned long le
 {
   if (opcode == REQ_PIEZO)
   {
-    piezo_get_data(buf, offset);
+    piezo_get_data(buf, len, offset);
   }
   else if (opcode == REQ_SIC)
   {
-     sic_get_data(buf, offset);
+     sic_get_data(buf, len, offset);
   }
 }
 
