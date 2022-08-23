@@ -164,12 +164,7 @@ int main(void)
   {
     //start_driver(); // If this line is included, runs the test program instead to be deleted in final version
 	//test_driver();  // If this line is included, runs Bellmans test program in a separate file, easier to delete in final version
-    
-    /* TxRx changed to Receive; Note however that this function has been modified to
-        also react to transmit interrupts. Another potential solution is to use HAL_I2C_EnableListen_IT(), as
-        this may be enough to trigger the call to HAL_I2C_AddrCallback(). This probably means though that we need
-        to call a function that reads and writes the I2C data in HAL_I2C_AddrCallback() based on the transfer direction */
-    if(HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)recvBuffer, sizeof(recvBuffer)) != HAL_OK)
+    if(HAL_I2C_EnableListen_IT(&hi2c1) != HAL_OK)
     { 
       Error_Handler();
     }
@@ -183,6 +178,10 @@ int main(void)
 
     if(!transferDirectionGlobal)// OBC Write
     {
+       if (HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)recvBuffer, sizeof(recvBuffer)) != HAL_OK) {
+           Error_Handler();
+       }
+       while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
        // Assuming no overflow here, i.e. that we did not receive too much data and
        // that hi2c1.XferCount <= sizeof(recvBuffer)
        recvLength = sizeof(recvBuffer) - hi2c1.XferCount;
@@ -197,7 +196,7 @@ int main(void)
        msp_error_code_send = msp_send_callback((uint8_t *)sendBuffer, &sendLength, addr);
        if (msp_error_code_send != 0) {
            // TODO Handle error
-       } else if (HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)sendBuffer, sendLength) != HAL_OK)
+       } else if (HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)sendBuffer, sendLength) != HAL_OK) {
            Error_Handler();
        }
        while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
