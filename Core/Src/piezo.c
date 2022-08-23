@@ -36,7 +36,7 @@ uint8_t xu6_buffer[17]; // used for sending data request, changed from 6 to 17 t
 uint8_t saveDataPointer[1];
 uint8_t piezoData[200];
 int piezoBufferRxInt[200];
-uint8_t piezoBufferint8[(sizeof(piezoBufferRxInt) / sizeof(piezoBufferRxInt[0]) << 1];
+uint8_t piezoBufferint8[(sizeof(piezoBufferRxInt) / sizeof(piezoBufferRxInt[0]) << 1)];
 extern UART_HandleTypeDef huart1;
 int dataLength = 0;
 

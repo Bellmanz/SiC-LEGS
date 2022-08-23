@@ -168,7 +168,6 @@ int main(void)
     }
    
     //wait for the i2c reception to finish this must timeout at some point, otherwise there is risk for getting stuck.
-    // TODO One way of solving this could be to utilize the HAL_I2C_MasterRxCpltCallback function instead of polling here
     while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
 
     msp_error_code_send = msp_send_callback((uint8_t *)sendBuffer, &sendLength, addr);
@@ -191,7 +190,7 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
     // Assuming no overflow here, i.e. that we did not receive too much data and
     // that hi2c1.XferCount <= sizeof(recvBuffer)
     recvLength = sizeof(recvBuffer) - hi2c1.XferCount;
-    //this funtion returns the negative error codes in MSP.
+
     msp_error_code_receive = msp_recv_callback((uint8_t *)recvBuffer, recvLength, addr);
     if (msp_error_receive != 0) {
       // TODO Handle error
@@ -199,7 +198,8 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
 
     if(has_function_to_execute)
     {
-         (*command_ptr) ();
+        turn_on_10v();  // debugging
+    	(*command_ptr) ();
          has_function_to_execute = false;
     }
 }
@@ -280,7 +280,7 @@ void start_driver(void){
       piezo_stop_exp();
       
       
-      piezo_get_data((uint8_t*) piezoBufferDebug, 0);
+      // piezo_get_data((uint8_t*) piezoBufferDebug, 0);
       uint16_t length = piezo_get_data_length();
       //printf("%d\n", length);
       
@@ -322,7 +322,7 @@ void start_driver(void){
       if(max_number_lines < 360){
         current_state = 0x4;
         start_test();
-        sic_get_data((uint8_t*) sic_test_data, 0);
+        // sic_get_data((uint8_t*) sic_test_data, 0);
         
        
         
