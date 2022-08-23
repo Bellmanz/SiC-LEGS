@@ -65,7 +65,7 @@ uint8_t recvBuffer[MSP_EXP_MAX_FRAME_SIZE];
 long unsigned int recvLength = 0; // changed 220809, the amount of data in the buffer containing valid data
 uint8_t sendBuffer[MSP_EXP_MAX_FRAME_SIZE];
 long unsigned int sendLength = 0; // changed 220809, the amount of data in the buffer containing valid data
-uint8_t transferDirectionGlobal = 1;
+uint8_t transferDirectionGlobal = 0;
 uint8_t volatile addr = 0x45; //defines the adress when only one i2c adress is used.
 bool volatile has_function_to_execute = false;
 void (* volatile command_ptr) () = NULL;
@@ -169,8 +169,9 @@ int main(void)
         also react to transmit interrupts. Another potential solution is to use HAL_I2C_EnableListen_IT(), as
         this may be enough to trigger the call to HAL_I2C_AddrCallback(). This probably means though that we need
         to call a function that reads and writes the I2C data in HAL_I2C_AddrCallback() based on the transfer direction */
-    if(HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)recvBuffer, sizeof(recvBuffer)) != HAL_OK)
-    { 
+    //if(HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)recvBuffer, sizeof(recvBuffer)) != HAL_OK)
+	if(HAL_I2C_EnableListen_IT(&hi2c1) != HAL_OK)
+	{
       Error_Handler();
     }
    
@@ -181,31 +182,39 @@ int main(void)
    
     }
 
-    if(!transferDirectionGlobal)// OBC Write
+/*    if(!transferDirectionGlobal)// OBC Write
     {
-       // Assuming no overflow here, i.e. that we did not receive too much data and
+       //turn_on_5v(); // Signal an OBC write for debug
+       if (HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)recvBuffer, sizeof(recvBuffer)) != HAL_OK) {
+           Error_Handler();
+       }
+       while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);       // Assuming no overflow here, i.e. that we did not receive too much data and
        // that hi2c1.XferCount <= sizeof(recvBuffer)
        recvLength = sizeof(recvBuffer) - hi2c1.XferCount;
        //this funtion returns the negative error codes in MSP.
        msp_error_code_receive = msp_recv_callback((uint8_t *)recvBuffer, recvLength, addr);
-       if (msp_error_receive != 0) {
+       if (msp_error_code_receive != 0) {
          // TODO Handle error
        }
     }
     else // OBC Read (REQ)
     {
+        turn_on_5v(); // Signal an OBC write for debug
+       // turn_on_vbat(); // Signal an OBC write for debug
        msp_error_code_send = msp_send_callback((uint8_t *)sendBuffer, &sendLength, addr);
        if (msp_error_code_send != 0) {
            // TODO Handle error
-       } else if (HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)sendBuffer, sendLength) != HAL_OK)
+       } else if (HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)sendBuffer, sendLength) != HAL_OK) {
            Error_Handler();
        }
-       while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
+
     }
+*/
 
     if(has_function_to_execute)
     {
-         (*command_ptr) ();
+        turn_on_10v();  // debugging
+    	(*command_ptr) ();
          has_function_to_execute = false;
     }
     /* USER CODE END WHILE */
@@ -291,7 +300,7 @@ void start_driver(void){
       piezo_stop_exp();
       
       
-      piezo_get_data((uint8_t*) piezoBufferDebug, 0);
+      // piezo_get_data((uint8_t*) piezoBufferDebug, 0);
       uint16_t length = piezo_get_data_length();
       //printf("%d\n", length);
       
@@ -333,7 +342,7 @@ void start_driver(void){
       if(max_number_lines < 360){
         current_state = 0x4;
         start_test();
-        sic_get_data((uint8_t*) sic_test_data, 0);
+        // sic_get_data((uint8_t*) sic_test_data, 0);
         
        
         
@@ -425,9 +434,35 @@ void print16bit(uint8_t biggest_number, uint8_t smallest_number, uint8_t number_
   */
 void HAL_I2C_AddrCallback(I2C_HandleTypeDef *i2cHandle, uint8_t transferDirection, uint16_t addrMatchCode)
 {
+	turn_on_vbat(); // Signal an OBC write for debug
   transferDirectionGlobal = transferDirection;
   addr_debug = addrMatchCode;
-// the code bellow is neede if two i2c adresses should be used.
+
+
+  if(!transferDirectionGlobal)// OBC Write
+  {
+     if (HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)recvBuffer, sizeof(recvBuffer)) != HAL_OK) {
+         Error_Handler();
+     }
+     turn_on_5v(); // Signal an OBC write for debug
+     //while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);       // Assuming no overflow here, i.e. that we did not receive too much data and
+     // that hi2c1.XferCount <= sizeof(recvBuffer)
+  }
+  else // OBC Read (REQ)
+  {
+      //turn_on_5v(); // Signal an OBC write for debug
+     // turn_on_vbat(); // Signal an OBC write for debug
+     msp_error_code_send = msp_send_callback((uint8_t *)sendBuffer, &sendLength, addr);
+     if (msp_error_code_send != 0) {
+         // TODO Handle error
+     } else if (HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)sendBuffer, sendLength) != HAL_OK) {
+         Error_Handler();
+     }
+  }
+
+
+
+  // the code bellow is neede if two i2c adresses should be used.
 //  if (addrMatchCode == 138)//202
 //  {
 //    addr = 0x45;
@@ -439,6 +474,20 @@ void HAL_I2C_AddrCallback(I2C_HandleTypeDef *i2cHandle, uint8_t transferDirectio
 //    piezo_sic = PIEZO;
 //  }
 }
+
+void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+    recvLength = sizeof(recvBuffer) - hi2c1.XferCount;
+    //this funtion returns the negative error codes in MSP.
+    msp_error_code_receive = msp_recv_callback((uint8_t *)recvBuffer, recvLength, addr);
+    if (msp_error_code_receive != 0) {
+      // TODO Handle error
+    }
+
+}
+
+
+
 /* USER CODE END 4 */
 
 /**
