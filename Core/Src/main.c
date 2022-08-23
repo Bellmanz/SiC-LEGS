@@ -65,7 +65,6 @@ uint8_t recvBuffer[MSP_EXP_MAX_FRAME_SIZE];
 long unsigned int recvLength = 0; // changed 220809, the amount of data in the buffer containing valid data
 uint8_t sendBuffer[MSP_EXP_MAX_FRAME_SIZE];
 long unsigned int sendLength = 0; // changed 220809, the amount of data in the buffer containing valid data
-uint8_t transferDirectionGlobal = 1;
 uint8_t volatile addr = 0x45; //defines the adress when only one i2c adress is used.
 bool volatile has_function_to_execute = false;
 void (* volatile command_ptr) () = NULL;
@@ -164,42 +163,38 @@ int main(void)
   {
     //start_driver(); // If this line is included, runs the test program instead to be deleted in final version
 	//test_driver();  // If this line is included, runs Bellmans test program in a separate file, easier to delete in final version
-    if(HAL_I2C_EnableListen_IT(&hi2c1) != HAL_OK)
-    { 
-      Error_Handler();
+    if (HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)recvBuffer, sizeof(recvBuffer)) != HAL_OK) {
+        Error_Handler();
     }
    
     //wait for the i2c reception to finish this must timeout at some point, otherwise there is risk for getting stuck.
     // TODO One way of solving this could be to utilize the HAL_I2C_MasterRxCpltCallback function instead of polling here
-    while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY)
-    {
-   
-    }
+    while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
 
-    if(!transferDirectionGlobal)// OBC Write
-    {
-       if (HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)recvBuffer, sizeof(recvBuffer)) != HAL_OK) {
-           Error_Handler();
-       }
-       while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
-       // Assuming no overflow here, i.e. that we did not receive too much data and
-       // that hi2c1.XferCount <= sizeof(recvBuffer)
-       recvLength = sizeof(recvBuffer) - hi2c1.XferCount;
-       //this funtion returns the negative error codes in MSP.
-       msp_error_code_receive = msp_recv_callback((uint8_t *)recvBuffer, recvLength, addr);
-       if (msp_error_receive != 0) {
-         // TODO Handle error
-       }
+    msp_error_code_send = msp_send_callback((uint8_t *)sendBuffer, &sendLength, addr);
+    if (msp_error_code_send != 0) {
+        // TODO Handle error
     }
-    else // OBC Read (REQ)
-    {
-       msp_error_code_send = msp_send_callback((uint8_t *)sendBuffer, &sendLength, addr);
-       if (msp_error_code_send != 0) {
-           // TODO Handle error
-       } else if (HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)sendBuffer, sendLength) != HAL_OK) {
-           Error_Handler();
-       }
-       while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
+    if (HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)sendBuffer, sendLength) != HAL_OK) {
+        Error_Handler();
+    }
+    while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+  }
+  /* USER CODE END 3 */
+}
+
+void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+    // Assuming no overflow here, i.e. that we did not receive too much data and
+    // that hi2c1.XferCount <= sizeof(recvBuffer)
+    recvLength = sizeof(recvBuffer) - hi2c1.XferCount;
+    //this funtion returns the negative error codes in MSP.
+    msp_error_code_receive = msp_recv_callback((uint8_t *)recvBuffer, recvLength, addr);
+    if (msp_error_receive != 0) {
+      // TODO Handle error
     }
 
     if(has_function_to_execute)
@@ -207,11 +202,6 @@ int main(void)
          (*command_ptr) ();
          has_function_to_execute = false;
     }
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-  }
-  /* USER CODE END 3 */
 }
 
 /**
@@ -414,30 +404,6 @@ void print16bit(uint8_t biggest_number, uint8_t smallest_number, uint8_t number_
   //printf("%d\t", val);
 }
 
-
-/**
-  * @brief A callback from the hal i2c library
-  * @param i2c handle
-  * @param the direction of the communication
-  * @param the adress that was called
-  * @retval None
-  */
-void HAL_I2C_AddrCallback(I2C_HandleTypeDef *i2cHandle, uint8_t transferDirection, uint16_t addrMatchCode)
-{
-  transferDirectionGlobal = transferDirection;
-  addr_debug = addrMatchCode;
-// the code bellow is neede if two i2c adresses should be used.
-//  if (addrMatchCode == 138)//202
-//  {
-//    addr = 0x45;
-//    piezo_sic = SIC;
-//  }
-//  if (addrMatchCode == 202)//138
-//  {
-//    addr = 0x65;
-//    piezo_sic = PIEZO;
-//  }
-}
 /* USER CODE END 4 */
 
 /**
