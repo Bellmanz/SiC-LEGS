@@ -44,7 +44,7 @@ extern ADC_HandleTypeDef                hadc;
 extern DAC_HandleTypeDef    		hdac;
 extern UART_HandleTypeDef 		huart1;
 extern I2C_HandleTypeDef 		hi2c1;
-static struct experiment_package  	experiments[EXPERIMENTPOINTS];
+static struct experiment_package  	experiments[EXPERIMENTPOINTS*2];
 
 
 void setDAC(uint32_t);
@@ -74,7 +74,7 @@ void sic_get_data(unsigned char *buf, unsigned long len, unsigned long data_offs
          check if the voltage levels are set to the correct values. (Battery voltage, 48V voltage etc.)
 */
 void start_test(void){
-  for(uint16_t i = 0; i < EXPERIMENTPOINTS; i++){
+  for(uint16_t i = 0; i < (EXPERIMENTPOINTS * 2); i++){
     experiments[i].temperature = 0;
     experiments[i].Vb = 0;
     experiments[i].Vbe = 0;
@@ -87,6 +87,7 @@ void start_test(void){
   // used to translate voltage into digital signal.
   for(uint16_t index = 0; index < EXPERIMENTPOINTS; index = index + 2){
     setDAC_voltage(dac_voltage);
+    HAL_Delay(10);
     dac_voltage += DACSTEPS;
     readADCvalues(index);
   }
@@ -284,7 +285,7 @@ in the OBC
 
    uint16_t buffer_index = 0;
 
-   for(uint16_t experiment_index = 0; experiment_index < EXPERIMENTPOINTS; experiment_index++){
+   for(uint16_t experiment_index = 0; experiment_index < (EXPERIMENTPOINTS * 2); experiment_index++){
     buffer[buffer_index] = experiments[experiment_index].temperature >> 8 & 0xFF;
     buffer[buffer_index + 1] = experiments[experiment_index].temperature & 0xFF;
 

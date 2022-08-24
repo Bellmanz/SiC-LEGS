@@ -10,10 +10,10 @@
 #include "power_management.h"
 #include "sicpiezo_global.h"
 #include <interface_flags.h>
+#include "experiment_constants.h"
 
 
-
-uint8_t sicBuffer[64];
+/* uint8_t sicBuffer[64];
 uint8_t piezoBuffer[30];
 extern bool volatile sic;
 extern bool volatile piezo;
@@ -22,16 +22,16 @@ extern bool getData;
 extern char piezoBufferRx[50];
 extern int piezoBufferRxInt[50];
 extern int aTxBuffer[100];
-extern uint16_t buffLength;
+extern uint16_t buffLength; */
 
 extern bool volatile has_function_to_execute;
 extern void (* volatile command_ptr) ();
-bool volatile debuggvar = false;
+/* bool volatile debuggvar = false;
 bool debuggvar2 = false;
 bool debuggvar3 = false;
 extern piezo_sic_type volatile piezo_sic;
 bool piezo_error = false;
-bool sic_error = false;
+bool sic_error = false; */
 int i = 0;
 
 
@@ -43,7 +43,7 @@ void msp_expsend_start(unsigned char opcode, unsigned long *len)
   }
   else if (opcode == REQ_SIC)
   {
-    *len = 64;
+    *len = BUFFERLENGTH;
   }
 }
 
@@ -74,7 +74,7 @@ void msp_expsend_complete(unsigned char opcode)
 
 void msp_expsend_error(unsigned char opcode, int error)
 {
-  //add code to set an error
+
 }
 
 void msp_exprecv_start(unsigned char opcode, unsigned long len)
@@ -119,7 +119,7 @@ void msp_exprecv_syscommand(unsigned char opcode)
       has_function_to_execute = true;
       break;
 
-    case MSP_OP_POWER_OFF:
+    case MSP_OP_POWER_OFF:  // ADD: Turn off all voltages
       i = 4;
       command_ptr = save_seqflags;
       has_function_to_execute = true;

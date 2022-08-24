@@ -681,7 +681,6 @@ HAL_StatusTypeDef HAL_I2C_Slave_Seq_Receive_DMA(I2C_HandleTypeDef *hi2c, uint8_t
 /**
   * @}
   */
-HAL_StatusTypeDef HAL_I2C_Slave_TxRx_IT(I2C_HandleTypeDef *hi2c, uint8_t *pData, uint16_t Size);
 
 /** @addtogroup I2C_IRQ_Handler_and_Callbacks IRQ Handler and Callbacks
   * @{

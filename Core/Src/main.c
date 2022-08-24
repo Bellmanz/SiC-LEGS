@@ -61,7 +61,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t recvBuffer[MSP_EXP_MAX_FRAME_SIZE];
+uint8_t recvBuffer[9];
+//uint8_t recvBuffer[MSP_EXP_MAX_FRAME_SIZE];
 long unsigned int recvLength = 0; // changed 220809, the amount of data in the buffer containing valid data
 uint8_t sendBuffer[MSP_EXP_MAX_FRAME_SIZE];
 long unsigned int sendLength = 0; // changed 220809, the amount of data in the buffer containing valid data
@@ -148,7 +149,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   // the following funtion call will initialize the eeprom by clearing it.
-  // reset_EEPROM_buffer(void);
+  reset_EEPROM_buffer();
   restore_seqflags();
   turn_off_48v();
   turn_off_5v();
@@ -170,38 +171,41 @@ int main(void)
     //wait for the i2c reception to finish this must timeout at some point, otherwise there is risk for getting stuck.
     while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
 
-    msp_error_code_send = msp_send_callback((uint8_t *)sendBuffer, &sendLength, addr);
-    if (msp_error_code_send != 0) {
-        // TODO Handle error
+    // Assuming no overflow here, i.e. that we did not receive too much data and
+    // that hi2c1.XferCount <= sizeof(recvBuffer)
+    recvLength = sizeof(recvBuffer);
+    //recvLength = sizeof(recvBuffer) - hi2c1.XferCount;
+
+    msp_error_code_receive = msp_recv_callback((uint8_t *)recvBuffer, recvLength, addr);
+    if (msp_error_code_receive != 0) {
+      // TODO Handle error
     }
-    if (HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)sendBuffer, sendLength) != HAL_OK) {
-        Error_Handler();
+
+    if (recvBuffer[0] != MSP_OP_T_ACK) {
+		msp_error_code_send = msp_send_callback((uint8_t *)sendBuffer, &sendLength, addr);
+		if (msp_error_code_send != 0) {
+			// TODO Handle error
+		}
+
+	    if (HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)sendBuffer, sendLength) != HAL_OK) {
+	        Error_Handler();
+	    }
+
     }
+
+
+    if(has_function_to_execute)
+    {
+    	(*command_ptr) ();
+         has_function_to_execute = false;
+    }
+
     while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
-}
-
-void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
-{
-    // Assuming no overflow here, i.e. that we did not receive too much data and
-    // that hi2c1.XferCount <= sizeof(recvBuffer)
-    recvLength = sizeof(recvBuffer) - hi2c1.XferCount;
-
-    msp_error_code_receive = msp_recv_callback((uint8_t *)recvBuffer, recvLength, addr);
-    if (msp_error_receive != 0) {
-      // TODO Handle error
-    }
-
-    if(has_function_to_execute)
-    {
-        turn_on_10v();  // debugging
-    	(*command_ptr) ();
-         has_function_to_execute = false;
-    }
 }
 
 /**

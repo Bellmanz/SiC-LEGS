@@ -80,8 +80,9 @@ void RS485(uint8_t rs485_mode){
 
 void clear_piezo_buffer (void)
 {
-    Flush_Buffer8(piezoData, (dataLength));
-    Flush_Buffer8(piezoBufferint8, (dataLength));
+	dataLength = 0;
+	//    Flush_Buffer8(piezoData, (dataLength));
+	//    Flush_Buffer8(piezoBufferint8, (dataLength));
 }
 
 /**
