@@ -17,7 +17,7 @@
 
 void test_driver(void) {
 
-	uint8_t piezoBufferDebug[200];
+	//uint8_t piezoBufferDebug[200];
 
 	while(1) {
 

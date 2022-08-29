@@ -66,8 +66,12 @@ void MX_ADC_Init(void)
 
   /** Configure for the selected ADC regular channel to be converted.
   */
+  // ADC_RANK_CHANNEL_NUMBER  turns on
+  // ADC_RANK_NONE   turns off
+  // turn off all to start with
+
   sConfig.Channel = ADC_CHANNEL_0;
-  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
+  sConfig.Rank = ADC_RANK_NONE;
   if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -128,6 +132,7 @@ void MX_ADC_Init(void)
   {
     Error_Handler();
   }
+
   /* USER CODE BEGIN ADC_Init 2 */
 
   /* USER CODE END ADC_Init 2 */

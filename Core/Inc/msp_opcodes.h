@@ -46,10 +46,14 @@
 #define START_EXP_PIEZO        0x50
 #define STOP_EXP_PIEZO         0x51
 #define START_EXP_SIC          0X52
-#define SIC_10V_OFF            0x53
+#define SIC_10V_OFF            0x53   // 0x53-0x59 are for testing and should be removed later
 #define PIEZO_5V_OFF           0x54
 #define PIEZO_48V_OFF          0x55 
-#define VBAT_OFF               0x56
+#define VBAT_OFF               0x13   //  Note temp use
+#define SIC_10V_ON             0x56
+#define PIEZO_5V_ON            0x57
+#define PIEZO_48V_ON           0x58
+#define VBAT_ON                0x59
    
 #define REQ_PIEZO              0x60
 #define REQ_SIC                0x61

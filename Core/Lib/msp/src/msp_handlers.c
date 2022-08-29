@@ -32,7 +32,6 @@ bool debuggvar3 = false;
 extern piezo_sic_type volatile piezo_sic;
 bool piezo_error = false;
 bool sic_error = false; */
-int i = 0;
 
 
 void msp_expsend_start(unsigned char opcode, unsigned long *len)
@@ -102,30 +101,30 @@ void msp_exprecv_syscommand(unsigned char opcode)
   switch(opcode)
   {
     case START_EXP_PIEZO:
-      i = 1;
       command_ptr = &piezo_start_exp;
       has_function_to_execute = true;
       break;
 
     case STOP_EXP_PIEZO:
-      i = 2;
       command_ptr = &piezo_stop_exp;
       has_function_to_execute = true;
       break;
 
     case START_EXP_SIC:
-      i = 3;
-      command_ptr = start_test;
+      command_ptr = &start_test;
       has_function_to_execute = true;
       break;
 
-    case MSP_OP_POWER_OFF:  // ADD: Turn off all voltages
-      i = 4;
-      command_ptr = save_seqflags;
+    case MSP_OP_POWER_OFF:  // Added turn off for all voltages
+      command_ptr = &save_seqflags;
+      turn_off_vbat();
+      turn_off_48v();
+      turn_off_10v();
+      turn_off_5v();
       has_function_to_execute = true;
       break;
 
-    case SIC_10V_OFF:
+    case SIC_10V_OFF:  // The following are for testing and should probably be excluded after debug
       turn_off_10v();
       break;
 
@@ -139,6 +138,24 @@ void msp_exprecv_syscommand(unsigned char opcode)
 
     case VBAT_OFF:
       turn_off_vbat();
+      break;
+
+    case SIC_10V_ON:
+      turn_on_vbat();  // necessary for 10 V
+      turn_on_10v();
+      break;
+
+    case PIEZO_5V_ON:
+      turn_on_5v();
+      break;
+
+    case PIEZO_48V_ON:
+      turn_on_vbat();  // necessary for 48 V
+      turn_on_48v();
+      break;
+
+    case VBAT_ON:
+      turn_on_vbat();
       break;
   }
 }
