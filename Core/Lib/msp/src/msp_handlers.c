@@ -24,8 +24,6 @@ extern int piezoBufferRxInt[50];
 extern int aTxBuffer[100];
 extern uint16_t buffLength; */
 
-extern bool volatile has_function_to_execute;
-extern void (* volatile command_ptr) ();
 /* bool volatile debuggvar = false;
 bool debuggvar2 = false;
 bool debuggvar3 = false;
@@ -101,27 +99,23 @@ void msp_exprecv_syscommand(unsigned char opcode)
   switch(opcode)
   {
     case START_EXP_PIEZO:
-      command_ptr = &piezo_start_exp;
-      has_function_to_execute = true;
+      piezo_start_exp();
       break;
 
     case STOP_EXP_PIEZO:
-      command_ptr = &piezo_stop_exp;
-      has_function_to_execute = true;
+      piezo_stop_exp();
       break;
 
     case START_EXP_SIC:
-      command_ptr = &start_test;
-      has_function_to_execute = true;
+      start_test();
       break;
 
     case MSP_OP_POWER_OFF:  // Added turn off for all voltages
-      command_ptr = &save_seqflags;
+      save_seqflags();
       turn_off_vbat();
       turn_off_48v();
       turn_off_10v();
       turn_off_5v();
-      has_function_to_execute = true;
       break;
 
     case SIC_10V_OFF:  // The following are for testing and should probably be excluded after debug

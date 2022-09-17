@@ -62,13 +62,8 @@
 
 /* USER CODE BEGIN PV */
 uint8_t recvBuffer[9];
-//uint8_t recvBuffer[MSP_EXP_MAX_FRAME_SIZE];
-long unsigned int recvLength = 0; // changed 220809, the amount of data in the buffer containing valid data
 uint8_t sendBuffer[MSP_EXP_MAX_FRAME_SIZE];
-long unsigned int sendLength = 0; // changed 220809, the amount of data in the buffer containing valid data
 uint8_t volatile addr = 0x45; //defines the adress when only one i2c adress is used.
-bool volatile has_function_to_execute = false;
-void (* volatile command_ptr) () = NULL;
 extern I2C_HandleTypeDef hi2c1;
 void print16bit(uint8_t , uint8_t, uint8_t );
 /* USER CODE END PV */
@@ -87,8 +82,6 @@ void RECIVE_FINISHED(I2C_HandleTypeDef *hi2c);
 uint8_t IF_DIRECTION_IS_RECIVE(I2C_HandleTypeDef *hi2c);
 uint8_t IF_DIRECTION_IS_SEND(I2C_HandleTypeDef *hi2c);
 // void BUFF_LENTH(uint8_t* pBuffer, long *BufferLength);
-uint8_t msp_error_code_receive;
-uint8_t msp_error_code_send;
 
 
 
@@ -164,47 +157,18 @@ int main(void)
   {
     //start_driver(); // If this line is included, runs the test program instead to be deleted in final version
 	//test_driver();  // If this line is included, runs Bellmans test program in a separate file, easier to delete in final version
-    if (HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t *)recvBuffer, sizeof(recvBuffer)) != HAL_OK) {
+    if (HAL_I2C_EnableListen_IT(&hi2c1) != HAL_OK) {
         Error_Handler();
     }
-   
+
     //wait for the i2c reception to finish this must timeout at some point, otherwise there is risk for getting stuck.
     while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
 
-    // Assuming no overflow here, i.e. that we did not receive too much data and
-    // that hi2c1.XferCount <= sizeof(recvBuffer)
-    recvLength = sizeof(recvBuffer);
-    //recvLength = sizeof(recvBuffer) - hi2c1.XferCount;
-
-    msp_error_code_receive = msp_recv_callback((uint8_t *)recvBuffer, recvLength, addr);
-    if (msp_error_code_receive != 0) {
-      // TODO Handle error
-    }
-
-    if (recvBuffer[0] != MSP_OP_T_ACK) {
-		msp_error_code_send = msp_send_callback((uint8_t *)sendBuffer, &sendLength, addr);
-		if (msp_error_code_send != 0) {
-			// TODO Handle error
-		}
-
-	    if (HAL_I2C_Slave_Transmit_IT(&hi2c1, (uint8_t *)sendBuffer, sendLength) != HAL_OK) {
-	        Error_Handler();
-	    }
-
-    }
-
-
-    if(has_function_to_execute)
-    {
-    	(*command_ptr) ();
-         has_function_to_execute = false;
-    }
-
-    while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
+  return 0;
   /* USER CODE END 3 */
 }
 
@@ -260,6 +224,85 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+/**
+  * @brief  Slave Address Match callback.
+  * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
+  *                the configuration information for the specified I2C.
+  * @param  TransferDirection Master request Transfer Direction (Write/Read), value of @ref I2C_XFERDIRECTION
+  * @param  AddrMatchCode Address Match Code
+  * @retval None
+  */
+void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c, uint8_t TransferDirection, uint16_t AddrMatchCode)
+{
+  uint32_t tmpisr = I2C_IT_ERRI | I2C_IT_TCI | I2C_IT_STOPI | I2C_IT_NACKI;
+
+  // Cannot set hi2c->XferISR to I2C_Slave_ISR_IT
+  // since it's private, assuming it's already set
+  if (hi2c == NULL || hi2c->XferISR == NULL) {
+    // TODO Handle uninitialized ISR
+    return;
+  }
+
+  /* Process Locked */
+  __HAL_LOCK(hi2c);
+
+  // Transfer direction is from master's point of view
+  if (TransferDirection == I2C_DIRECTION_TRANSMIT) {
+    hi2c->State       = HAL_I2C_STATE_BUSY_RX;
+    hi2c->pBuffPtr    = recvBuffer;
+    hi2c->XferCount   = (uint16_t) sizeof(recvBuffer);
+
+    tmpisr |= I2C_IT_RXI;
+
+  } else if (TransferDirection == I2C_DIRECTION_RECEIVE) {
+    unsigned long sendLength;
+    uint8_t msp_error_code_send = msp_send_callback(sendBuffer, &sendLength, addr);
+    if (msp_error_code_send != 0 || sendLength > sizeof(sendBuffer)) {
+      // TODO Handle error
+        __HAL_UNLOCK(hi2c);
+        return;
+    }
+
+    hi2c->State       = HAL_I2C_STATE_BUSY_TX;
+    hi2c->pBuffPtr    = sendBuffer;
+    hi2c->XferCount   = (uint16_t) sendLength;
+
+    tmpisr |= I2C_IT_TXI;
+
+  } else {
+    // TODO Handle invalid transfer direction
+    __HAL_UNLOCK(hi2c);
+    return;
+  }
+
+  hi2c->Mode        = HAL_I2C_MODE_SLAVE;
+  hi2c->ErrorCode   = HAL_I2C_ERROR_NONE;
+
+  /* Prepare transfer parameters */
+  hi2c->XferOptions = I2C_NO_OPTION_FRAME;
+
+  hi2c->XferSize = hi2c->XferCount;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hi2c);
+
+  __HAL_I2C_ENABLE_IT(hi2c, tmpisr);
+}
+
+/**
+  * @brief  Slave Rx Transfer completed callback.
+  * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
+  *                the configuration information for the specified I2C.
+  * @retval None
+  */
+void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+  uint8_t msp_error_code_receive = msp_recv_callback(recvBuffer, sizeof(recvBuffer), addr);
+  if (msp_error_code_receive != 0) {
+    // TODO Handle error
+  }
+}
 /*
  *
  void start_driver(void){
