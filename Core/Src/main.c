@@ -65,6 +65,8 @@
 uint8_t recvBuffer[9];
 uint8_t sendBuffer[MSP_EXP_MAX_FRAME_SIZE];
 uint8_t volatile addr = 0x45; //defines the adress when only one i2c adress is used.
+bool volatile has_function_to_execute = false;
+void (* volatile command_ptr)() = NULL;
 extern I2C_HandleTypeDef hi2c1;
 void print16bit(uint8_t , uint8_t, uint8_t );
 /* USER CODE END PV */
@@ -154,16 +156,15 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  HAL_I2C_EnableListen_IT(&hi2c1);
   while (1)
   {
-    //start_driver(); // If this line is included, runs the test program instead to be deleted in final version
-	//test_driver();  // If this line is included, runs Bellmans test program in a separate file, easier to delete in final version
-    if (HAL_I2C_EnableListen_IT(&hi2c1) != HAL_OK) {
-        Error_Handler();
-    }
 
-    //wait for the i2c reception to finish this must timeout at some point, otherwise there is risk for getting stuck.
-    while (HAL_I2C_GetState(&hi2c1) != HAL_I2C_STATE_READY);
+	  if (has_function_to_execute) {
+		  (*command_ptr)();
+		  has_function_to_execute = false;
+	  }
+
 
     /* USER CODE END WHILE */
 
@@ -236,66 +237,25 @@ void SystemClock_Config(void)
   */
 void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c, uint8_t TransferDirection, uint16_t AddrMatchCode)
 {
-  //uint32_t tmpisr = I2C_IT_ERRI | I2C_IT_TCI | I2C_IT_STOPI | I2C_IT_NACKI;
-  // Cannot set hi2c->XferISR to I2C_Slave_ISR_IT
-  // since it's private, assuming it's already set
-/*  if (hi2c == NULL || hi2c->XferISR == NULL) {
-    // TODO Handle uninitialized ISR
-    return;
-  }
-
-  /* Process Locked */
-//  __HAL_LOCK(hi2c);
-
   // Transfer direction is from master's point of view
   if (TransferDirection == I2C_DIRECTION_TRANSMIT) {
-
-      turn_on_vbat();
 	  HAL_I2C_Slave_Seq_Receive_IT(&hi2c1, recvBuffer, (uint16_t) sizeof(recvBuffer), I2C_FIRST_AND_LAST_FRAME);
-
-	  /*	  hi2c->State       = HAL_I2C_STATE_BUSY_RX;
-    hi2c->pBuffPtr    = recvBuffer;
-    hi2c->XferCount   = (uint16_t) sizeof(recvBuffer);
-
-    tmpisr |= I2C_IT_RXI; */
 
   } else if (TransferDirection == I2C_DIRECTION_RECEIVE) {
     unsigned long sendLength;
     uint8_t msp_error_code_send = msp_send_callback(sendBuffer, &sendLength, addr);
     if (msp_error_code_send != 0 || sendLength > sizeof(sendBuffer)) {
       // TODO Handle error
-    	//__HAL_UNLOCK(hi2c);
         return;
     }
-    turn_on_5v();
 
     HAL_I2C_Slave_Seq_Transmit_IT(&hi2c1, sendBuffer, (uint16_t) sendLength, I2C_FIRST_AND_LAST_FRAME);
-/*    hi2c->State       = HAL_I2C_STATE_BUSY_TX;
-    hi2c->pBuffPtr    = sendBuffer;
-    hi2c->XferCount   = (uint16_t) sendLength;
-
-    tmpisr |= I2C_IT_TXI; */
 
   } else {
     // TODO Handle invalid transfer direction
-    //__HAL_UNLOCK(hi2c);
     return;
   }
 
-
-/*
-  hi2c->Mode        = HAL_I2C_MODE_SLAVE;
-  hi2c->ErrorCode   = HAL_I2C_ERROR_NONE;
-
-  /* Prepare transfer parameters */
-/*  hi2c->XferOptions = I2C_NO_OPTION_FRAME;
-
-  hi2c->XferSize = hi2c->XferCount;
-
-  /* Process Unlocked */
-  //__HAL_UNLOCK(hi2c);
-
-//  __HAL_I2C_ENABLE_IT(hi2c, tmpisr);
 }
 
 /**
@@ -311,158 +271,30 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
     // TODO Handle error
   }
 }
-/*
- *
- void start_driver(void){
-  while(1){
-    // bffLength = BUFFERLENGTH;
-    // This tests if 48V can be turned on and off
-    
-    if (run_transceiver_RE_DE){
-     piezo_power_on();
-     HAL_Delay(5000);
-     piezo_power_off();
-     // RS485(RS_MODE_TRANSMIT);
-     // RS485(RS_MODE_RECEIVE);
-     // HAL_Delay(5000);
-     // RS485(RS_MODE_DEACTIVATE);
-     // HAL_Delay(5000);
-    }
-    
-    
-    if(run_piezo || run_all){
-      current_state = 0x1;
-      piezo_start_exp();
-      HAL_Delay(30000);
-      
-      current_state = 0x2;
-      piezo_stop_exp();
-      
-      
-      // piezo_get_data((uint8_t*) piezoBufferDebug, 0);
-      uint16_t length = piezo_get_data_length();
-      //printf("%d\n", length);
-      
-     
-      
-      for(uint8_t i = 0; i<length/2; i++){
-        //printf("0x%X ", sic_test_data[i]);
-       if(i % 8 == 0){
-         //printf("\n");
-        }
-        print16bit(piezoBufferDebug[i*2], piezoBufferDebug[i*2+1], 1);
-      }
-      
-      for(uint8_t i = 0; i<length; i++){
-        //printf("0x%X ", sic_test_data[i]);
-        if(i % 8 == 0){
-          //printf("\n");
-        }
-        //printf("0x%02x\t", piezoBufferDebug[i]);
-      }
-      HAL_Delay(60000);
-    }
-    
-    // Test if the LDO(U3_regul10V) can be turned on and off.
-    // There is no pin for 10V, so a multimeter or probe will have to be used on U3
-    if(run_10V || run_all){
-      current_state = 0x3;
-      sic_power_on();
-      HAL_Delay(5000);
-      
-      current_state = 0x4;
-      sic_power_off();
-      HAL_Delay(5000);
-      
-    
-    }
-    
-    if(run_sic_test || run_all){
-      if(max_number_lines < 360){
-        current_state = 0x4;
-        start_test();
-        // sic_get_data((uint8_t*) sic_test_data, 0);
-        
-       
-        
-        for(test_index = 0; test_index<BUFFERLENGTH/2; test_index++){
-          //printf("0x%X ", sic_test_data[i]);
-          
-          if(test_index % 8 == 0 && test_index != 0){
-            //printf("\n");
-            max_number_lines++;
-          }
-          
-          print16bit(sic_test_data[test_index*2], sic_test_data[test_index*2+1], 0);
-          
-        }
-        //printf("\n");
-        //sic_power_off();
-        //HAL_Delay(100);
-      }
-      else {
-        //printf("Please save data from the terminal now. Max number of lines almost reached.\n");
-        max_number_lines = 0;
-      }
-      
-    }
-    
-    if (run_dac){
-      sic_power_on();
-      setDAC_voltage(700);
-      HAL_Delay(10000);
-      
-      setDAC_voltage(1200);
-      HAL_Delay(10000);
-      
-      setDAC_voltage(2100);
-      HAL_Delay(10000);
-      
-      setDAC_voltage(2800);
-      HAL_Delay(10000);
-      
-      //setDAC(1.2*1241);
-      //HAL_Delay(10000);
-      
-      //setDAC(2.1*1241);
-     // HAL_Delay(10000);
-      
-     
-    //  setDAC(2.8*1241);
-    //  HAL_Delay(10000);
-      
-      sic_power_off();
-      setDAC(0);
-      HAL_Delay(3000);
-      
-      //sic_power_on();
-      //setDAC(2.8*1241);
-      HAL_Delay(1000);
-    }
-    //piezo_get_data(&piezoBufferDebug, 30);
-  
-  }
+
+/**
+  * @brief  Listen Complete callback.
+  * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
+  *                the configuration information for the specified I2C.
+  * @retval None
+  */
+void HAL_I2C_ListenCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	HAL_I2C_EnableListen_IT(hi2c);
 }
 
-void print16bit(uint8_t biggest_number, uint8_t smallest_number, uint8_t number_format){
-  uint16_t val = (biggest_number << 8) + smallest_number;
-  switch(number_format){
-    case 0:
-      //printf("%d\t", val);
-      break;
-    
-    case 1:
-      //printf("0x%x\t", val);
-      break;
-      
-    case 2:
-      //printf("0x02%x\t", val);
-      break;
-    
-  }
-  //printf("%d\t", val);
+/**
+  * @brief  I2C error callback.
+  * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
+  *                the configuration information for the specified I2C.
+  * @retval None
+  */
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
+{
+	HAL_I2C_EnableListen_IT(hi2c);
 }
-*/
+
+
 /* USER CODE END 4 */
 
 /**

@@ -12,6 +12,8 @@
 #include <interface_flags.h>
 #include "experiment_constants.h"
 
+extern bool volatile has_function_to_execute;
+extern void (* volatile command_ptr)();
 
 /* uint8_t sicBuffer[64];
 uint8_t piezoBuffer[30];
@@ -99,23 +101,27 @@ void msp_exprecv_syscommand(unsigned char opcode)
   switch(opcode)
   {
     case START_EXP_PIEZO:
-      piezo_start_exp();
+      command_ptr = &piezo_start_exp;
+      has_function_to_execute = true;
       break;
 
     case STOP_EXP_PIEZO:
-      piezo_stop_exp();
+      command_ptr = &piezo_stop_exp;
+      has_function_to_execute = true;
       break;
 
     case START_EXP_SIC:
-      start_test();
+      command_ptr = &start_test;
+      has_function_to_execute = true;
       break;
 
     case MSP_OP_POWER_OFF:  // Added turn off for all voltages
-      save_seqflags();
+      command_ptr = &save_seqflags;
       turn_off_vbat();
       turn_off_48v();
       turn_off_10v();
       turn_off_5v();
+      has_function_to_execute = true;
       break;
 
     case SIC_10V_OFF:  // The following are for testing and should probably be excluded after debug
