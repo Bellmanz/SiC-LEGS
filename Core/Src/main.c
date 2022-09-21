@@ -42,6 +42,7 @@
 #include "tools.h"
 #include "experiment_constants.h"
 #include "power_management.h"
+#define I2C_NO_OPTION_FRAME     (0xFFFF0000U)
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -235,59 +236,66 @@ void SystemClock_Config(void)
   */
 void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c, uint8_t TransferDirection, uint16_t AddrMatchCode)
 {
-  uint32_t tmpisr = I2C_IT_ERRI | I2C_IT_TCI | I2C_IT_STOPI | I2C_IT_NACKI;
-
+  //uint32_t tmpisr = I2C_IT_ERRI | I2C_IT_TCI | I2C_IT_STOPI | I2C_IT_NACKI;
   // Cannot set hi2c->XferISR to I2C_Slave_ISR_IT
   // since it's private, assuming it's already set
-  if (hi2c == NULL || hi2c->XferISR == NULL) {
+/*  if (hi2c == NULL || hi2c->XferISR == NULL) {
     // TODO Handle uninitialized ISR
     return;
   }
 
   /* Process Locked */
-  __HAL_LOCK(hi2c);
+//  __HAL_LOCK(hi2c);
 
   // Transfer direction is from master's point of view
   if (TransferDirection == I2C_DIRECTION_TRANSMIT) {
-    hi2c->State       = HAL_I2C_STATE_BUSY_RX;
+
+      turn_on_vbat();
+	  HAL_I2C_Slave_Seq_Receive_IT(&hi2c1, recvBuffer, (uint16_t) sizeof(recvBuffer), I2C_FIRST_AND_LAST_FRAME);
+
+	  /*	  hi2c->State       = HAL_I2C_STATE_BUSY_RX;
     hi2c->pBuffPtr    = recvBuffer;
     hi2c->XferCount   = (uint16_t) sizeof(recvBuffer);
 
-    tmpisr |= I2C_IT_RXI;
+    tmpisr |= I2C_IT_RXI; */
 
   } else if (TransferDirection == I2C_DIRECTION_RECEIVE) {
     unsigned long sendLength;
     uint8_t msp_error_code_send = msp_send_callback(sendBuffer, &sendLength, addr);
     if (msp_error_code_send != 0 || sendLength > sizeof(sendBuffer)) {
       // TODO Handle error
-        __HAL_UNLOCK(hi2c);
+    	//__HAL_UNLOCK(hi2c);
         return;
     }
+    turn_on_5v();
 
-    hi2c->State       = HAL_I2C_STATE_BUSY_TX;
+    HAL_I2C_Slave_Seq_Transmit_IT(&hi2c1, sendBuffer, (uint16_t) sendLength, I2C_FIRST_AND_LAST_FRAME);
+/*    hi2c->State       = HAL_I2C_STATE_BUSY_TX;
     hi2c->pBuffPtr    = sendBuffer;
     hi2c->XferCount   = (uint16_t) sendLength;
 
-    tmpisr |= I2C_IT_TXI;
+    tmpisr |= I2C_IT_TXI; */
 
   } else {
     // TODO Handle invalid transfer direction
-    __HAL_UNLOCK(hi2c);
+    //__HAL_UNLOCK(hi2c);
     return;
   }
 
+
+/*
   hi2c->Mode        = HAL_I2C_MODE_SLAVE;
   hi2c->ErrorCode   = HAL_I2C_ERROR_NONE;
 
   /* Prepare transfer parameters */
-  hi2c->XferOptions = I2C_NO_OPTION_FRAME;
+/*  hi2c->XferOptions = I2C_NO_OPTION_FRAME;
 
   hi2c->XferSize = hi2c->XferCount;
 
   /* Process Unlocked */
-  __HAL_UNLOCK(hi2c);
+  //__HAL_UNLOCK(hi2c);
 
-  __HAL_I2C_ENABLE_IT(hi2c, tmpisr);
+//  __HAL_I2C_ENABLE_IT(hi2c, tmpisr);
 }
 
 /**
