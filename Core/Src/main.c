@@ -84,29 +84,10 @@ void SystemClock_Config(void);
 void RECIVE_FINISHED(I2C_HandleTypeDef *hi2c);
 uint8_t IF_DIRECTION_IS_RECIVE(I2C_HandleTypeDef *hi2c);
 uint8_t IF_DIRECTION_IS_SEND(I2C_HandleTypeDef *hi2c);
-// void BUFF_LENTH(uint8_t* pBuffer, long *BufferLength);
-
-
-
-// TEST DRIVER debug 
-uint16_t addr_debug = 0x0;
-uint8_t piezoBufferDebug[200];
-uint8_t current_state = 0x0;
-uint8_t sic_test_data[BUFFERLENGTH];
-// volatile uint16_t bffLength = BUFFERLENGTH;
-uint16_t max_number_lines = 0;
-uint16_t test_index = 0;
-bool run_all = 0;
-bool run_piezo = 0;
-bool run_transceiver_RE_DE = 0;
-bool run_10V = 1;
-bool run_sic_test = 1;
-bool run_dac = 1;
 
 
 extern volatile struct msp_exp_state_information msp_exp_state;
 bool ready = false;
-//piezo_sic_type volatile piezo_sic = NONE;
 
 /* USER CODE END 0 */
 
@@ -218,7 +199,7 @@ void SystemClock_Config(void)
   }
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_I2C1;
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
-  PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
+  PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_SYSCLK;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();

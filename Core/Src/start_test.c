@@ -77,6 +77,14 @@ void sic_get_data(unsigned char *buf, unsigned long len, unsigned long data_offs
          check if the voltage levels are set to the correct values. (Battery voltage, 48V voltage etc.)
 */
 void start_test(void){
+  sic_power_on();
+  HAL_Delay(1000);
+
+  // Make a dummy Read to fix incorrect start values?
+  setDAC_voltage(DACMINIMUMVOLTAGE * 1.25);  // rescales for the call
+  HAL_Delay(500);
+  readADCvalues(0);
+
   for(uint16_t i = 0; i < EXPERIMENTPOINTS; i++){
     experiments[i].temperature1 = 0;
     experiments[i].Vbe1 = 0;
@@ -87,14 +95,14 @@ void start_test(void){
     experiments[i].Vb2 = 0;
     experiments[i].Vc2 = 0;
   }
-  sic_power_on();
-  HAL_Delay(1000);
+
   uint16_t dac_voltage = DACMINIMUMVOLTAGE;
   // setDAC( Voltage * constant) = set DAC to Voltage.
-  // Constant is used to translate actual voltage to binary value by factor 4095 steps (12 bit) / 3300 mV = 1.25
+  // Constant is used to translate actual voltage to binary value by factor 4095 steps (12 bit) / 3300 mV = 1.24
+  // This was rounded up to 1.25 to work with integer steps of 100
   for(uint16_t index = 0; index < EXPERIMENTPOINTS; index++){
-    setDAC_voltage(dac_voltage * 1.25);  // rescales
-    HAL_Delay(10);
+    setDAC_voltage(dac_voltage * 1.25);  // rescales for the call
+    HAL_Delay(500);
     readADCvalues(index);
     dac_voltage = dac_voltage + DACSTEPS;
   }
@@ -314,68 +322,6 @@ void readADCvalues(uint8_t index){
 
 }
 
-/*    HAL_ADC_PollForConversion(&hadc, 10);
-   	experiments[index].temperature1 += HAL_ADC_GetValue(&hadc);
-    //printf("\n temp si %d\n", experiments[0+index].temperature);
-
-    HAL_ADC_PollForConversion(&hadc, 10);
-    experiments[index].Vbe1 += HAL_ADC_GetValue(&hadc);
-    //printf("\n Vbe si %d\n", experiments[0+index].Vbe);
-
-    HAL_ADC_PollForConversion(&hadc, 10);
-    experiments[index].Vb1 += HAL_ADC_GetValue(&hadc);
-    //printf("\n Vb si %d\n", experiments[0+index].Vb);
-
-    HAL_ADC_PollForConversion(&hadc, 10);
-    experiments[index].Vc1 += HAL_ADC_GetValue(&hadc);
-    //printf("\n Vc si %d\n", experiments[0+index].Vc);
-
-    HAL_ADC_PollForConversion(&hadc, 10);
-    experiments[index].temperature2 += HAL_ADC_GetValue(&hadc);
-    // printf("\n temp sic %d\n", experiments[1+index].temperature);
-
-    HAL_ADC_PollForConversion(&hadc, 10);
-    experiments[index].Vbe2 += HAL_ADC_GetValue(&hadc);
-    // printf("\n ube sic %d\n", experiments[1+index].ube);
-
-    HAL_ADC_PollForConversion(&hadc, 10);
-    experiments[index].Vb2 += HAL_ADC_GetValue(&hadc);
-    //   printf("\n vrb sic %d\n", experiments[1+index].vrb);
-
-    HAL_ADC_PollForConversion(&hadc, 10);
-    experiments[index].Vc2 += HAL_ADC_GetValue(&hadc);
-    //  printf("\n vrc sic %d\n", experiments[1+index].vrc); */
-
-
-    // Due to a mistake in configuration, this extra line may be necessary since
-    // there are currently 9 ADC configured and ADC 9 is not actually connetected
-    // to anything and will only taint our results.
-    // Probably isn't necessary though, since each calibration should reset
-    // the ADC que.
-    // HAL_ADC_PollForConversion(&hadc, 100);  // Dummy read
-    // HAL_ADC_GetValue(&hadc);
-
-
-
-
-  /* Removed by Bellman. Averaging will be done at reception on ground
-  If used Averages 16 measurements by left shit of 4; not necessary
-  Initially thought to be a smart way to do division by 16,
-  but keeping 16 * 12 bits per value uses the 16 bit integers better
-
-  experiments[index].temperature1 = experiments[index].temperature1 >> 4;
-  experiments[index].Vbe1 = experiments[index].Vbe1 >> 4;
-  experiments[index].Vb1 = experiments[index].Vb1 >> 4;
-  experiments[index].Vc1 = experiments[index].Vc1 >> 4;
-
-  experiments[index].temperature2 = experiments[index].temperature2 >> 4;
-  experiments[index].Vbe2 = experiments[index].Vbe2 >> 4;
-  experiments[index].Vb2 = experiments[index].Vb2 >> 4;
-  experiments[index].Vc2 = experiments[index].Vc2 >> 4;
-  */
-
-
-
 
  void convert_8bit(uint8_t * buffer){
    //printf("\n temp si %d\n", experiments[0].temperature);
@@ -412,34 +358,19 @@ void readADCvalues(uint8_t index){
    }
  }
 
-/*
-@brief SetDAC, Sets the voltage to the BJTS circuits, internal function for SetDAC_voltage
-Included in setDAC_voltage to avoid errors
-@param uint32_t , the Value the setDAC should have, max is 4095 (FFF in HEX)
-@ The setDAC function, transforms the digital output from the MCU to
-an Analog output which is needed for the BJT circuits.
-@return void
-*/
-/* void setDAC(uint32_t voltage){
-  HAL_DAC_SetValue(&hdac, DAC1_CHANNEL_1, DAC_ALIGN_12B_R, voltage);
-  HAL_DAC_Start(&hdac, DAC1_CHANNEL_1);
-} */
 
 
 /**
-@brief SetDAC_voltage, Sets the voltage of the DAC to a specified value in mV
-@param uint32_t, value in mV to set DAC to.
-@ Calculates the corresponding digital value of the param with a reference
-voltage set to 3.3 and sets the DAC to the value.
-Scale factor is 4095 steps / 3290 mV = 1.25 steps / mV
+@brief SetDAC_voltage, Sets the voltage of the DAC to a specified value
+@param uint32_t, value in mV to set DAC, but scaled by 1.25
+@ The calling routine should calculate the corresponding digital value of the param with a reference
+voltage set to 3300 mV and sets the DAC to the value.
+Scale factor is 4095 steps / 3300 mV = 1.24 steps / mV
+This was rounded up to 1.25 = 4095/3276 to work with integers in steps of 100
 @return void
 */
 void setDAC_voltage(uint32_t voltage){
-//  uint32_t digital_voltage = (voltage * 4095) / (3290);
-//	uint32_t digital_voltage = voltage * 1.25;
 	HAL_DAC_SetValue(&hdac, DAC1_CHANNEL_1, DAC_ALIGN_12B_R, voltage);
 	HAL_DAC_Start(&hdac, DAC1_CHANNEL_1);
-    //setDAC(digital_voltage);
-    //printf("%d\n", digital_voltage);
 }
 
